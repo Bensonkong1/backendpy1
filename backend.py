@@ -5,12 +5,13 @@ import matplotlib.pyplot as plt
 import io
 import base64
 from flask_cors import CORS
+import os
 
 app = Flask(__name__)
 CORS(app)  # This will enable CORS for all routes
 
-# Define your local backend server port
-port = 5000
+# Define your local backend server port from environment variable
+port = int(os.getenv('PORT', 5000))  # Default to 5000 if PORT environment variable is not set
 
 class FIRFilterDesigner:
     def __init__(self):
@@ -101,6 +102,6 @@ def design_filter():
 def home():
     return "Welcome to the FIR Filter Designer API"
 
-# Run the Flask app
+# Run the Flask app on the port specified by Render
 if __name__ == '__main__':
-    app.run(port=5000, debug=True)
+    app.run(host='0.0.0.0', port=port, debug=False)  # Ensure debug is False for production
