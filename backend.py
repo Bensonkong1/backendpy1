@@ -77,6 +77,9 @@ class FIRFilterDesigner:
             numtaps = int(4 / width)
             if numtaps % 2 == 0:
                 numtaps += 1
+            # Ensure minimum number of taps for stability
+            numtaps = max(numtaps, 21)
+            
             if filter_type == 'Low-Pass':
                 b = signal.firwin(numtaps, params[1] / nyquist, pass_zero=True)
             else:  # High-Pass
@@ -84,10 +87,19 @@ class FIRFilterDesigner:
         elif filter_type in ['Band-Pass', 'Band-Stop']:
             width = params[3] / nyquist
             numtaps = int(4 / width)
+            if numtaps % 2 == 0:
+                numtaps += 1
+            # Ensure minimum number of taps for stability
+            numtaps = max(numtaps, 21)
+            
+            # Normalize frequencies to Nyquist
+            low_freq = params[1] / nyquist
+            high_freq = params[2] / nyquist
+            
             if filter_type == 'Band-Pass':
-                b = signal.remez(numtaps, [0, params[1] - width, params[1], params[2], params[2] + width, nyquist], [0, 1, 0], fs=fs)
+                b = signal.firwin(numtaps, [low_freq, high_freq], pass_zero=False)
             else:  # Band-Stop
-                b = signal.remez(numtaps, [0, params[1] - width, params[1], params[2], params[2] + width, nyquist], [1, 0, 1], fs=fs)
+                b = signal.firwin(numtaps, [low_freq, high_freq], pass_zero='bandstop')
 
         # Frequency response plot
         w, h = signal.freqz(b)
@@ -119,8 +131,14 @@ class FIRFilterDesigner:
         duration = 1.0
         t = np.linspace(0, duration, int(fs * duration), endpoint=False)
         f_pass, f_stop = self.get_test_frequencies(filter_type, params)
-        x = np.sin(2 * np.pi * f_pass * t) + np.sin(2 * np.pi * f_stop * t)
-        y = signal.lfilter(b, 1, x)  # Apply filter
+        
+        # Add some noise to make the signal more interesting
+        x = (np.sin(2 * np.pi * f_pass * t) + 
+             0.5 * np.sin(2 * np.pi * f_stop * t) + 
+             0.1 * np.random.randn(len(t)))
+        
+        # Apply filter
+        y = signal.lfilter(b, 1, x)
 
         # Prepare data for plotting (first 0.1 seconds)
         plot_samples = int(fs * 0.1)
@@ -135,7 +153,11 @@ class FIRFilterDesigner:
         plt.xlabel('Time (s)', fontsize=12)
         plt.ylabel('Amplitude', fontsize=12)
         plt.grid(True, alpha=0.3)
+        plt.xlim(0, t_plot[-1])
         plt.tight_layout()
+        
+        # Debug: Check if we have data
+        print(f"Original signal - min: {np.min(x_plot):.3f}, max: {np.max(x_plot):.3f}")
 
         # Encode original signal plot
         buf_orig = io.BytesIO()
@@ -152,7 +174,11 @@ class FIRFilterDesigner:
         plt.xlabel('Time (s)', fontsize=12)
         plt.ylabel('Amplitude', fontsize=12)
         plt.grid(True, alpha=0.3)
+        plt.xlim(0, t_plot[-1])
         plt.tight_layout()
+        
+        # Debug: Check if we have data
+        print(f"Filtered signal - min: {np.min(y_plot):.3f}, max: {np.max(y_plot):.3f}")
 
         # Encode filtered signal plot
         buf_filt = io.BytesIO()
