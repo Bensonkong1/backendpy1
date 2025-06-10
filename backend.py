@@ -77,9 +77,6 @@ class FIRFilterDesigner:
             numtaps = int(4 / width)
             if numtaps % 2 == 0:
                 numtaps += 1
-            # Ensure minimum number of taps for stability
-            numtaps = max(numtaps, 21)
-            
             if filter_type == 'Low-Pass':
                 b = signal.firwin(numtaps, params[1] / nyquist, pass_zero=True)
             else:  # High-Pass
@@ -87,19 +84,10 @@ class FIRFilterDesigner:
         elif filter_type in ['Band-Pass', 'Band-Stop']:
             width = params[3] / nyquist
             numtaps = int(4 / width)
-            if numtaps % 2 == 0:
-                numtaps += 1
-            # Ensure minimum number of taps for stability
-            numtaps = max(numtaps, 21)
-            
-            # Normalize frequencies to Nyquist
-            low_freq = params[1] / nyquist
-            high_freq = params[2] / nyquist
-            
             if filter_type == 'Band-Pass':
-                b = signal.firwin(numtaps, [low_freq, high_freq], pass_zero=False)
+                b = signal.remez(numtaps, [0, params[1] - width, params[1], params[2], params[2] + width, nyquist], [0, 1, 0], fs=fs)
             else:  # Band-Stop
-                b = signal.firwin(numtaps, [low_freq, high_freq], pass_zero='bandstop')
+                b = signal.remez(numtaps, [0, params[1] - width, params[1], params[2], params[2] + width, nyquist], [1, 0, 1], fs=fs)
 
         # Frequency response plot
         w, h = signal.freqz(b)
@@ -131,91 +119,39 @@ class FIRFilterDesigner:
         duration = 1.0
         t = np.linspace(0, duration, int(fs * duration), endpoint=False)
         f_pass, f_stop = self.get_test_frequencies(filter_type, params)
-        
-        # Add some noise to make the signal more interesting
-        x = (np.sin(2 * np.pi * f_pass * t) + 
-             0.5 * np.sin(2 * np.pi * f_stop * t) + 
-             0.1 * np.random.randn(len(t)))
-        
-        # Apply filter
-        y = signal.lfilter(b, 1, x)
+        x = np.sin(2 * np.pi * f_pass * t) + np.sin(2 * np.pi * f_stop * t)
+        y = signal.lfilter(b, 1, x)  # Apply filter
 
-        # Prepare data for plotting (first 0.1 seconds)
-        plot_samples = int(fs * 0.1)
+        # Signal plots
+        fig2, axs2 = plt.subplots(2, 1, figsize=(14, 6))
+        plot_samples = int(fs * 0.1)  # First 0.1 seconds
         t_plot = t[:plot_samples]
         x_plot = x[:plot_samples]
         y_plot = y[:plot_samples]
 
-        # Original signal plot
-        fig_orig = plt.figure(figsize=(12, 6))
-        plt.plot(t_plot, x_plot, 'b-', linewidth=1.5)
-        plt.title(f'Original Signal (f_pass={f_pass:.1f}Hz + f_stop={f_stop:.1f}Hz)', fontsize=14)
-        plt.xlabel('Time (s)', fontsize=12)
-        plt.ylabel('Amplitude', fontsize=12)
-        plt.grid(True, alpha=0.3)
-        plt.xlim(0, t_plot[-1])
-        plt.tight_layout()
-        
-        # Debug: Check if we have data
-        print(f"Original signal - min: {np.min(x_plot):.3f}, max: {np.max(x_plot):.3f}")
+        axs2[0].plot(t_plot, x_plot)
+        axs2[0].set_title('Original Signal')
+        axs2[0].set_xlabel('Time (s)')
+        axs2[0].set_ylabel('Amplitude')
+        axs2[0].grid()
 
-        # Encode original signal plot
-        buf_orig = io.BytesIO()
-        fig_orig.savefig(buf_orig, format='png', dpi=100, bbox_inches='tight')
-        buf_orig.seek(0)
-        original_signal_img = base64.b64encode(buf_orig.read()).decode('utf-8')
-        buf_orig.close()
-        plt.close(fig_orig)
+        axs2[1].plot(t_plot, y_plot)
+        axs2[1].set_title('Filtered Signal')
+        axs2[1].set_xlabel('Time (s)')
+        axs2[1].set_ylabel('Amplitude')
+        axs2[1].grid()
 
-        # Filtered signal plot
-        fig_filt = plt.figure(figsize=(12, 6))
-        plt.plot(t_plot, y_plot, 'r-', linewidth=1.5)
-        plt.title(f'Filtered Signal ({filter_type} Filter Applied)', fontsize=14)
-        plt.xlabel('Time (s)', fontsize=12)
-        plt.ylabel('Amplitude', fontsize=12)
-        plt.grid(True, alpha=0.3)
-        plt.xlim(0, t_plot[-1])
-        plt.tight_layout()
-        
-        # Debug: Check if we have data
-        print(f"Filtered signal - min: {np.min(y_plot):.3f}, max: {np.max(y_plot):.3f}")
-
-        # Encode filtered signal plot
-        buf_filt = io.BytesIO()
-        fig_filt.savefig(buf_filt, format='png', dpi=100, bbox_inches='tight')
-        buf_filt.seek(0)
-        filtered_signal_img = base64.b64encode(buf_filt.read()).decode('utf-8')
-        buf_filt.close()
-        plt.close(fig_filt)
-
-        # Combined signal comparison plot (optional - keeping the original behavior)
-        fig_combined = plt.figure(figsize=(14, 8))
-        
-        plt.subplot(2, 1, 1)
-        plt.plot(t_plot, x_plot, 'b-', linewidth=1.5, label='Original Signal')
-        plt.title(f'Signal Comparison - {filter_type} Filter', fontsize=14)
-        plt.ylabel('Amplitude', fontsize=12)
-        plt.grid(True, alpha=0.3)
-        plt.legend()
-        
-        plt.subplot(2, 1, 2)
-        plt.plot(t_plot, y_plot, 'r-', linewidth=1.5, label='Filtered Signal')
-        plt.xlabel('Time (s)', fontsize=12)
-        plt.ylabel('Amplitude', fontsize=12)
-        plt.grid(True, alpha=0.3)
-        plt.legend()
-        
         plt.tight_layout()
 
-        # Encode combined signal plots
-        buf_combined = io.BytesIO()
-        fig_combined.savefig(buf_combined, format='png', dpi=100, bbox_inches='tight')
-        buf_combined.seek(0)
-        combined_signal_img = base64.b64encode(buf_combined.read()).decode('utf-8')
-        buf_combined.close()
-        plt.close(fig_combined)
+        # Encode signal plots
+        buf2 = io.BytesIO()
+        fig2.savefig(buf2, format='png')
+        buf2.seek(0)
+        signal_plots_img = base64.b64encode(buf2.read()).decode('utf-8')
+        buf2.close()
+        plt.close(fig2)
 
-        return freq_response_img, original_signal_img, filtered_signal_img, combined_signal_img
+        return freq_response_img, signal_plots_img
 
 @app.route('/api/design_filter', methods=['POST'])
 def design_filter():
@@ -226,13 +162,11 @@ def design_filter():
     designer = FIRFilterDesigner()
     if filter_type in designer.filter_types:
         try:
-            freq_response, original_signal, filtered_signal, combined_signals = designer.design_filter(filter_type, params)
+            freq_response, signal_plots = designer.design_filter(filter_type, params)
             return jsonify({
                 "message": "Filter designed successfully",
                 "frequency_response": freq_response,
-                "original_signal": original_signal,
-                "filtered_signal": filtered_signal,
-                "combined_signals": combined_signals  # Keeping backward compatibility
+                "signal_plots": signal_plots
             })
         except Exception as e:
             return jsonify({"error": f"Error designing filter: {str(e)}"}), 500
