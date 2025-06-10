@@ -7,14 +7,14 @@ import base64
 from flask_cors import CORS
 import os
 
-app = Flask(_name_)
+app = Flask(__name__)
 CORS(app)  # This will enable CORS for all routes
 
 # Define your local backend server port from environment variable
 port = int(os.getenv('PORT', 5000))  # Default to 5000 if PORT environment variable is not set
 
 class FIRFilterDesigner:
-    def _init_(self):
+    def __init__(self):
         self.filter_types = ['Low-Pass', 'High-Pass', 'Band-Pass', 'Band-Stop']
         self.filter_descriptions = {
             'Low-Pass': 'Allows low frequencies to pass through while attenuating high frequencies.',
@@ -103,5 +103,5 @@ def home():
     return "Welcome to the FIR Filter Designer API"
 
 # Run the Flask app on the port specified by Render
-if _name_ == '_main_':
-    app.run(host='0.0.0.0', port=port, debug=False)  # Ensure debug is False for production
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=port, debug=False)  # Ensure debug is False for production
