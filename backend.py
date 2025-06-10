@@ -122,37 +122,36 @@ class FIRFilterDesigner:
         x = np.sin(2 * np.pi * f_pass * t) + np.sin(2 * np.pi * f_stop * t)
         y = signal.lfilter(b, 1, x)  # Apply filter
 
-        # Prepare data for plotting (first 0.1 seconds)
-        plot_samples = int(fs * 0.1)
+        # Signal plots
+        fig2, axs2 = plt.subplots(2, 1, figsize=(14, 6))
+        plot_samples = int(fs * 0.1)  # First 0.1 seconds
         t_plot = t[:plot_samples]
         x_plot = x[:plot_samples]
         y_plot = y[:plot_samples]
 
-        # Combined signal comparison plot
-        fig_combined = plt.figure(figsize=(14, 8))
-        plt.subplot(2, 1, 1)
-        plt.plot(t_plot, x_plot, 'b-', linewidth=1.5, label='Original Signal')
-        plt.title(f'Signal Comparison - {filter_type} Filter', fontsize=14)
-        plt.ylabel('Amplitude', fontsize=12)
-        plt.grid(True, alpha=0.3)
-        plt.legend()
-        plt.subplot(2, 1, 2)
-        plt.plot(t_plot, y_plot, 'r-', linewidth=1.5, label='Filtered Signal')
-        plt.xlabel('Time (s)', fontsize=12)
-        plt.ylabel('Amplitude', fontsize=12)
-        plt.grid(True, alpha=0.3)
-        plt.legend()
+        axs2[0].plot(t_plot, x_plot)
+        axs2[0].set_title('Original Signal')
+        axs2[0].set_xlabel('Time (s)')
+        axs2[0].set_ylabel('Amplitude')
+        axs2[0].grid()
+
+        axs2[1].plot(t_plot, y_plot)
+        axs2[1].set_title('Filtered Signal')
+        axs2[1].set_xlabel('Time (s)')
+        axs2[1].set_ylabel('Amplitude')
+        axs2[1].grid()
+
         plt.tight_layout()
 
-        # Encode combined signal plot
-        buf_combined = io.BytesIO()
-        fig_combined.savefig(buf_combined, format='png', dpi=100, bbox_inches='tight')
-        buf_combined.seek(0)
-        combined_signal_img = base64.b64encode(buf_combined.read()).decode('utf-8')
-        buf_combined.close()
-        plt.close(fig_combined)
+        # Encode signal plots
+        buf2 = io.BytesIO()
+        fig2.savefig(buf2, format='png')
+        buf2.seek(0)
+        signal_plots_img = base64.b64encode(buf2.read()).decode('utf-8')
+        buf2.close()
+        plt.close(fig2)
 
-        return freq_response_img, combined_signal_img
+        return freq_response_img, signal_plots_img
 
 @app.route('/api/design_filter', methods=['POST'])
 def design_filter():
@@ -163,11 +162,11 @@ def design_filter():
     designer = FIRFilterDesigner()
     if filter_type in designer.filter_types:
         try:
-            freq_response, signal_comparison = designer.design_filter(filter_type, params)
+            freq_response, signal_plots = designer.design_filter(filter_type, params)
             return jsonify({
                 "message": "Filter designed successfully",
                 "frequency_response": freq_response,
-                "signal_comparison": signal_comparison
+                "signal_plots": signal_plots
             })
         except Exception as e:
             return jsonify({"error": f"Error designing filter: {str(e)}"}), 500
